@@ -3,6 +3,7 @@ package com.example.ndktest;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.annotation.TargetApi;
+import android.app.Activity;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
@@ -26,6 +27,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
@@ -48,6 +50,7 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity implements View.OnClickListener {
 
     private static final String TAG = "MainActivity";
+    private Activity mActivity;
     private Bitmap mBitmap;
     private ImageView mImageView;
     private static final int CHANGE_BLUE = 0;
@@ -87,25 +90,37 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 saveBitmap(mBitmap);
             }
         });
+        mActivity = this;
     }
 
     private void changeSize() {
+        EditText editText2 = findViewById(R.id.nH);
+        EditText editText1 = findViewById(R.id.nW);
+        if (mBitmap == null || TextUtils.isEmpty(editText1.getText().toString())
+                || TextUtils.isEmpty(editText2.getText().toString())) {
+            Toast.makeText(this, "请准备好所有信息", Toast.LENGTH_SHORT).show();
+            return;
+        }
         int w = mBitmap.getWidth();
         int h = mBitmap.getHeight();
         int[] pixel = new int[w * h];
-        EditText editText1 = findViewById(R.id.nW);
+
+
         int nW = Integer.parseInt(editText1.getText().toString());
-        EditText editText2 = findViewById(R.id.nH);
         int nH = Integer.parseInt(editText2.getText().toString());
         mBitmap.getPixels(pixel, 0, w, 0, 0, w, h);
         int[] result = NDKUtils.grayProc(pixel, w, h, nW, nH);
-        mBitmap = Bitmap.createBitmap(nW, nH, Bitmap.Config.RGB_565);
+        mBitmap = Bitmap.createBitmap(nW, nH, Bitmap.Config.ARGB_8888);
         mBitmap.setPixels(result, 0, nW, 0, 0, nW, nH);
         mImageView.setImageBitmap(mBitmap);
     }
 
     @Override
     public void onClick(View view) {
+        if (mBitmap == null) {
+            Toast.makeText(this, "请先选择图片", Toast.LENGTH_SHORT).show();
+            return;
+        }
         int type = -1;
         switch (view.getId()) {
             case R.id.changeBlue:
@@ -123,29 +138,36 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         startDetail(type);
     }
 
-    public static void saveBitmap(Bitmap bm) {
+    public  void saveBitmap(Bitmap bm) {
+        if (bm == null) {
+            Toast.makeText(this,"请先准备好图片",Toast.LENGTH_SHORT).show();
+            return;
+        }
         Log.e(TAG, "保存图片");
-        File sdDir = Environment.getExternalStorageDirectory();
-        String tmpFile = sdDir.toString() + "/DCIM/" + "occlusionCap.png";
+        MediaStore.Images.Media.insertImage(mActivity.getContentResolver(), bm, "occlusionCap.png", "");
+        Log.i(TAG, "已经保存");
+        Toast.makeText(this,"保存成功",Toast.LENGTH_SHORT).show();
+       /* File sdDir = Environment.getExternalStorageDirectory();
+        String tmpFile = sdDir.toString() + "/DCIM/Camera/" + "occlusionCap.png";
         File f = new File(tmpFile);
         try {
             FileOutputStream out = new FileOutputStream(f);
             bm.compress(Bitmap.CompressFormat.PNG, 100, out);
             out.flush();
             out.close();
-            Log.i(TAG, "已经保存");
+
         } catch (FileNotFoundException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         } catch (IOException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
-        }
+        }*/
     }
 
     private void startDetail(int type) {
         Mat image = new Mat();
-        mBitmap = ((BitmapDrawable)getResources().getDrawable(R.drawable.stx1)).getBitmap();
+        // mBitmap = ((BitmapDrawable)getResources().getDrawable(R.drawable.stx1)).getBitmap();
         Utils.bitmapToMat(mBitmap, image);
 
         Mat hsvImg = new Mat();
@@ -202,12 +224,13 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             for (int i = 0; i < nc; i++) {
                 index = row + i;
 
-                if (hArray[index] <= (avgH + 20) && hArray[index] >= (avgH - 20)
+                if (hArray[index] <= (avgH + 10) && hArray[index] >= (avgH - 10)
                         && sArray[index] <= (avgS + 150)
                         && sArray[index] >= (avgS - 150)
                 ) {
                     if (type == CHANGE_RED) {
                         hArray[index] = 127;
+                        sArray[index] = -1;
                     }
                     if (type == CHANGE_WHITE) {
                         hArray[index] = 0;
@@ -217,6 +240,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     }
                     if (type == CHANGE_BLUE) {
                         hArray[index] = 24;
+                        sArray[index] = -1;
                     }
                 }
             }
@@ -224,7 +248,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         list.get(0).put(0, 0, hArray);
         list.get(1).put(0, 0, sArray);
-//        list.get(2).put(0,0,vArray);
+        //list.get(2).put(0,0,vArray);
 
 
         Log.i(TAG, "merge photo");
@@ -239,7 +263,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     private Bitmap getResultBitmap() {
-        return Bitmap.createBitmap(mBitmap.getWidth(), mBitmap.getHeight(), Bitmap.Config.RGB_565);
+        return Bitmap.createBitmap(mBitmap.getWidth(), mBitmap.getHeight(), Bitmap.Config.ARGB_8888);
     }
 
     private void initLoaderOpenCV() {
@@ -262,8 +286,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         switch (requestCode) {
             case 1:
                 if (resultCode == RESULT_OK) {
-                    Uri imageUri = 
-                    mBitmap = getBitmap(path);
+                    Uri imageUri = data.getData();
+                    mBitmap = getBitmap(imageUri, mActivity);
                     mImageView.setImageBitmap(mBitmap);
                 }
                 break;
@@ -273,21 +297,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
-    public static Bitmap getBitmap(String filePath) {
-        if (TextUtils.isEmpty(filePath)) {
-            return null;
-        }
-        File file = new File(filePath);
+    public static Bitmap getBitmap(Uri uri, Activity activity) {
         InputStream inputStream = null;
         try {
-             inputStream = new FileInputStream(file);
+            inputStream = activity.getContentResolver().openInputStream(uri);
         } catch (FileNotFoundException e) {
             return null;
         }
         BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
         options.inMutable = true;
-        return BitmapFactory.decodeStream(inputStream,new android.graphics.Rect(),options);
+        return BitmapFactory.decodeStream(inputStream, new android.graphics.Rect(), options);
     }
 
     @TargetApi(Build.VERSION_CODES.KITKAT)
@@ -328,7 +348,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                     contentUri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
                 }
                 final String selection = MediaStore.MediaColumns._ID + "=?";
-                final String[] selectionArgs = new String[] { split[1] };
+                final String[] selectionArgs = new String[]{split[1]};
                 return getDataColumn(context, contentUri, selection,
                         selectionArgs);
             }
@@ -351,21 +371,17 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
      * Get the value of the data column for this Uri . This is useful for
      * MediaStore Uris , and other file - based ContentProviders.
      *
-     * @param context
-     *            The context.
-     * @param uri
-     *            The Uri to query.
-     * @param selection
-     *            (Optional) Filter used in the query.
-     * @param selectionArgs
-     *            (Optional) Selection arguments used in the query.
+     * @param context       The context.
+     * @param uri           The Uri to query.
+     * @param selection     (Optional) Filter used in the query.
+     * @param selectionArgs (Optional) Selection arguments used in the query.
      * @return The value of the _data column, which is typically a file path.
      */
     public static String getDataColumn(Context context, Uri uri,
                                        String selection, String[] selectionArgs) {
         Cursor cursor = null;
         final String column = MediaStore.MediaColumns.DATA;
-        final String[] projection = { column };
+        final String[] projection = {column};
         try {
             cursor = context.getContentResolver().query(uri, projection,
                     selection, selectionArgs, null);
@@ -381,8 +397,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     /**
-     * @param uri
-     *            The Uri to check.
+     * @param uri The Uri to check.
      * @return Whether the Uri authority is ExternalStorageProvider.
      */
     public static boolean isExternalStorageDocument(Uri uri) {
@@ -391,8 +406,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     /**
-     * @param uri
-     *            The Uri to check.
+     * @param uri The Uri to check.
      * @return Whether the Uri authority is DownloadsProvider.
      */
     public static boolean isDownloadsDocument(Uri uri) {
@@ -401,8 +415,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     /**
-     * @param uri
-     *            The Uri to check.
+     * @param uri The Uri to check.
      * @return Whether the Uri authority is MediaProvider.
      */
     public static boolean isMediaDocument(Uri uri) {
@@ -411,8 +424,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     }
 
     /**
-     * @param uri
-     *            The Uri to check.
+     * @param uri The Uri to check.
      * @return Whether the Uri authority is Google Photos.
      */
     public static boolean isGooglePhotosUri(Uri uri) {
